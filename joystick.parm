@@ -1,0 +1,3 @@
+# Включаем поддержку джойстика в симуляции ArduPilot
+SIM_JOYSTICK_ENABLED=1
+JOYSTICK_0_ENABLED=1

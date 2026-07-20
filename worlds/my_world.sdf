@@ -1,0 +1,380 @@
+<?xml version="1.0" ?>
+<sdf version="1.9">
+  <world name="iris_runway">
+    <!-- <physics name="1ms" type="ignore"> -->
+      <!-- <max_step_size>0.001</max_step_size> -->
+      <!-- <real_time_factor>1.0</real_time_factor> -->
+    <!-- </physics> -->
+	
+	<physics name="1ms" type="ode">
+  <max_step_size>0.001</max_step_size>  <!-- 1 мс, стандарт для ArduPilot -->
+  <real_time_factor>1.0</real_time_factor>
+  <real_time_update_rate>1000</real_time_update_rate> <!-- 1000 Гц -->
+  
+  <!-- Оптимизация ODE для скорости -->
+  <ode>
+    <solver>
+      <type>quick</type>  <!-- Быстрее, чем 'world' -->
+      <iters>10</iters>   <!-- Можно снизить до 5, если RTF все еще падает -->
+      <precon_iters>0</precon_iters>
+      <sor>1.4</sor>
+    </solver>
+    <constraints>
+      <cfm>0.0</cfm>
+      <erp>0.2</erp>
+      <contact_max_correcting_vel>100.0</contact_max_correcting_vel>
+      <contact_surface_layer>0.001</contact_surface_layer>
+    </constraints>
+  </ode>
+</physics>
+
+
+<!-- <plugin filename="libArduPilotPlugin.so" name="ArduPilotPlugin"> -->
+  <!-- <mavlink> -->
+    <!-- <host>127.0.0.1</host> -->
+    <!-- <port>14550</port> -->
+  <!-- </mavlink> -->
+<!-- </plugin> -->
+	
+	
+	
+	<!-- ВЕТЕР: задаётся через отдельный тег -->
+<wind>
+  <linear_velocity>0 0 0</linear_velocity>
+  <dynamic_wind>true</dynamic_wind>
+</wind>
+
+  <plugin filename="gz-sim-wind-system" name="gz::sim::systems::Wind">
+    <wind_topic>/world/iris_runway/wind</wind_topic>
+    <dynamic_wind>true</dynamic_wind>
+  </plugin>
+
+<!-- Плагин обработки ветра -->
+<plugin filename="gz-sim-wind-effects-system" name="gz::sim::systems::WindEffects">
+  <force_approximation_scaling_factor>1</force_approximation_scaling_factor>
+</plugin>
+
+
+    <plugin filename="gz-sim-physics-system"
+      name="gz::sim::systems::Physics">
+    </plugin>
+    <plugin
+      filename="gz-sim-sensors-system"
+      name="gz::sim::systems::Sensors">
+      <render_engine>ogre2</render_engine>
+    </plugin>
+    <plugin filename="gz-sim-user-commands-system"
+      name="gz::sim::systems::UserCommands">
+    </plugin>
+    <plugin filename="gz-sim-scene-broadcaster-system"
+      name="gz::sim::systems::SceneBroadcaster">
+    </plugin>
+    <plugin filename="gz-sim-imu-system"
+      name="gz::sim::systems::Imu">
+    </plugin>
+    <plugin filename="gz-sim-navsat-system"
+      name="gz::sim::systems::NavSat">
+    </plugin>
+
+
+    <scene>
+      <ambient>1.0 1.0 1.0</ambient>
+      <background>0.8 0.8 0.8</background>
+      <sky></sky>
+    </scene>
+
+    <spherical_coordinates>
+      <latitude_deg>-35.363262</latitude_deg>
+      <longitude_deg>149.165237</longitude_deg>
+      <elevation>584</elevation>
+      <heading_deg>0</heading_deg>
+      <surface_model>EARTH_WGS84</surface_model>
+    </spherical_coordinates>
+
+    <light type="directional" name="sun">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 10 0 0 0</pose>
+      <diffuse>0.8 0.8 0.8 1</diffuse>
+      <specular>0.8 0.8 0.8 1</specular>
+      <attenuation>
+        <range>1000</range>
+        <constant>0.9</constant>
+        <linear>0.01</linear>
+        <quadratic>0.001</quadratic>
+      </attenuation>
+      <direction>-0.5 0.1 -0.9</direction>
+    </light>
+
+    <model name="axes">
+      <static>1</static>
+      <link name="link">
+        <visual name="r">
+          <cast_shadows>0</cast_shadows>
+          
+          <geometry>
+            <box>
+              <size>10 0.01 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>1 0 0 0.8</ambient>
+            <diffuse>1 0 0 0.8</diffuse>
+            <emissive>1 0 0 0.8</emissive>
+            <specular>0.5 0.5 0.5 0.8</specular>
+          </material>
+        </visual>
+        <visual name="g">
+          <cast_shadows>0</cast_shadows>
+          <pose>0 5 0.1 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.01 10 0.01</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 1 0 0.8</ambient>
+            <diffuse>0 1 0 0.8</diffuse>
+            <emissive>0 1 0 0.8</emissive>
+            <specular>0.5 0.5 0.5 0.8</specular>
+          </material>
+        </visual>
+        <visual name="b">
+          <cast_shadows>0</cast_shadows>
+          <pose>0 0 5.1 0 0 0</pose>
+          <geometry>
+            <box>
+              <size>0.01 0.01 10</size>
+            </box>
+          </geometry>
+          <material>
+            <ambient>0 0 1 0.8</ambient>
+            <diffuse>0 0 1 0.8</diffuse>
+            <emissive>0 0 1 0.8</emissive>
+            <specular>0.5 0.5 0.5 0.8</specular>
+          </material>
+        </visual>
+        <sensor name="navsat_sensor" type="navsat">
+          <always_on>1</always_on>
+          <update_rate>1</update_rate>
+        </sensor>
+      </link>
+    </model>
+    
+    <include>
+      <uri>model://runway</uri>
+      <pose degrees="true">-29 545 0 0 0 363</pose>
+    </include>
+
+    <include>
+      <!-- <uri>model://iris_quadroplane</uri> -->
+	   <uri>model://iris_with_wings</uri>
+      <pose>5 0.1 0.15 0 0 0</pose>
+    </include>
+
+<model name="simple_airplane">
+  <pose>5 0 80 0 0 1.5708</pose>
+  <static>false</static>
+  <link name="airplane_link">
+    <enable_wind>true</enable_wind>
+    <gravity>false</gravity>
+    <pose>0 0 0 0 0 0</pose>
+
+    <!-- ==================== ФЮЗЕЛЯЖ (красный) ==================== -->
+    <visual name="fuselage_visual">
+      <pose>0 0 0 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>3.0 0.3 0.3</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- ==================== КРЫЛЬЯ (красные с красными торцами) ==================== -->
+    <!-- Основное крыло -->
+    <visual name="wing_body">
+      <pose>0 0 -0.2 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.4 3.998 0.1</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- Левый торец крыла -->
+    <visual name="wing_left_cap">
+      <pose>0 -1.9995 -0.2 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.4 0.001 0.1</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- Правый торец крыла -->
+    <visual name="wing_right_cap">
+      <pose>0 1.9995 -0.2 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.4 0.001 0.1</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- Передняя грань крыла -->
+    <visual name="wing_front_cap">
+      <pose>0.2 0 -0.2 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.001 4.0 0.1</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- Задняя грань крыла -->
+    <visual name="wing_back_cap">
+      <pose>-0.2 0 -0.2 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.001 4.0 0.1</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- ==================== ХВОСТ (красный) ==================== -->
+    <!-- Горизонтальный стабилизатор -->
+    <visual name="tail_horizontal">
+      <pose>-1.3 0 0.15 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.3 1.5 0.05</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- Вертикальный киль -->
+    <visual name="tail_vertical">
+      <pose>-1.3 0 0.3 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>0.25 0.05 0.3</size>
+        </box>
+      </geometry>
+      <material>
+        <ambient>1 0 0 1</ambient>
+        <diffuse>1 0 0 1</diffuse>
+        <specular>0.5 0.5 0.5 1</specular>
+      </material>
+    </visual>
+
+    <!-- ==================== КОЛЛИЗИЯ ==================== -->
+    <collision name="airplane_collision">
+      <pose>0 0 0 0 0 0</pose>
+      <geometry>
+        <box>
+          <size>3.0 4.0 0.5</size>
+        </box>
+      </geometry>
+    </collision>
+  </link>
+ 
+  
+    <!-- Плагин управления скоростью -->
+  <plugin
+    filename="gz-sim-velocity-control-system"
+    name="gz::sim::systems::VelocityControl">
+    <topic>/model/simple_airplane/cmd_vel</topic>
+  </plugin>
+</model>
+
+
+  <!-- ============================================ -->
+  <!-- ПУСКОВАЯ ПЛАТФОРМА (СИНИЙ КУБ)               -->
+  <!-- ============================================ -->
+  <model name="launch_pad">
+    
+    <!-- Устанавливаем в центр координат -->
+    <pose>0 0 0 0 0 0</pose>
+	
+	  <!-- Плагин для управления платфоролй черз мышь-->
+<plugin filename="/home/amd-user/projects/my_drone_sim/plugins/turret_plugin/build/libTurretPlugin.so"
+        name="gz::sim::v8::systems::TurretPlugin">
+</plugin>
+
+    <link name="pad_link">
+      <!-- Визуальная часть (Синий цвет) -->
+      <visual name="visual">
+        <geometry>
+          <box>
+            <size>0.5 0.5 0.5</size>
+          </box>
+        </geometry>
+        <material>
+          <ambient>0 0 1 1</ambient>
+          <diffuse>0 0 1 1</diffuse>
+          <specular>0.2 0.2 0.2 1</specular>
+        </material>
+      </visual>
+
+      <!-- Физическая часть (Огромное трение) -->
+      <collision name="collision">
+        <geometry>
+          <box>
+            <size>0.5 0.5 0.5</size>
+          </box>
+        </geometry>
+        <surface>
+          <friction>
+            <ode>
+              <!-- Огромное трение, чтобы дрон не скользил -->
+              <mu>100000.0</mu>
+              <mu2>100000.0</mu2>
+            </ode>
+          </friction>
+          <contact>
+            <ode>
+              <max_vel>100.0</max_vel>
+              <min_depth>0.001</min_depth>
+            </ode>
+          </contact>
+        </surface>
+      </collision>
+    </link>
+  </model>
+
+  </world>
+</sdf>
