@@ -220,6 +220,7 @@ def main():
                         print(f"   LOS rate=({guidance.los.kf_cx.rate:+.3f}, {guidance.los.kf_cy.rate:+.3f}) deg/s")
                         print(f"   TTC growth_rate={guidance.ttc_est.kf.rate if guidance.ttc_est.kf.rate else 'None'}")
                         print(f"   TTC approaching={guidance.ttc_est._approaching}")
+                        print(f"   LEAD_CAPTURE_ACTIVE={g.get('lead_capture_active', False)}")
 
                     # 2. Абсолютные пиксельные координаты точки упреждения
                     aim_x = cx + g["lead_x"]
@@ -229,6 +230,8 @@ def main():
                     if is_debug_frame:
                         print(f"🎯 AIM POINT: aim_x={aim_x:.1f} px | aim_y={aim_y:.1f} px")
                         print(f"   offset from center: ({aim_x - CENTER_X:+.1f}, {aim_y - CENTER_Y:+.1f}) px")
+                        capture_status = "ЗАХВАТ" if not g.get('lead_capture_active', False) else "СОПРОВОЖДЕНИЕ"
+                        print(f"   Status: {capture_status}")
                         print(f"{'='*60}")
 
                     # 3. Ошибка для PD-регулятора
