@@ -31,6 +31,8 @@ class InterceptGuidance1:
         self._lead_capture_active = False  # Флаг: обратная связь упреждения включена
         self._capture_counter = 0  # Счётчик кадров в области захвата
         self._initial_lead_set = False  # Флаг: начальное упреждение установлено
+        self._prev_dist_to_lead = None  # Для вычисления производной расстояния
+        self._dist_derivative = 0.0  # Производная расстояния (фильтрованная)
 
     def reset(self):
         self.los.reset()
@@ -46,6 +48,8 @@ class InterceptGuidance1:
         self._lead_capture_active = False
         self._capture_counter = 0
         self._initial_lead_set = False
+        self._prev_dist_to_lead = None
+        self._dist_derivative = 0.0
 
     def _target_size_ratio(self, bbox_w):
         return bbox_w / float(self.cfg.FRAME_W)
@@ -106,7 +110,10 @@ class InterceptGuidance1:
 
         los_rate_mag = math.hypot(rate_x, rate_y)  # deg/s
 
-        # --- Логика захвата упреждения (Lead Capture) ---
+        # --- ЛОГИКА ЗАХВАТА УПРЕЖДЕНИЯ (Lead Capture) ---
+        # Критическое исправление: включаем ОС не когда центр кадра ДОСТИГ точки упреждения,
+        # а когда точка упреждения ПРИБЛИЖАЕТСЯ к центру кадра (дрон начал разворот)
+        
         # Вычисляем точку упреждения для проверки попадания в область захвата
         temp_lead_az_deg, temp_lead_el_deg, temp_lead_mag = self._compute_lead(rate_x, rate_y, ttc)
         temp_lead_px_x = self._fx * math.tan(math.radians(temp_lead_az_deg))
@@ -119,14 +126,26 @@ class InterceptGuidance1:
         lead_point_y = cy + temp_lead_px_y
         
         # Расстояние от ЦЕНТРА КАДРА до точки упреждения
-        # Это критически важно: проверяем, насколько точка упреждения близка к центру кадра
         frame_center_x = self.cfg.FRAME_W / 2.0
         frame_center_y = self.cfg.FRAME_H / 2.0
         dist_to_lead = math.hypot(lead_point_x - frame_center_x, lead_point_y - frame_center_y)
         
-        # Проверка: точка упреждения находится в области вокруг центра кадра
-        # Это означает, что дрон навёлся на точку упреждения (нос дрона смотрит за переднюю часть цели)
-        in_capture_zone = dist_to_lead <= self.cfg.LEAD_CAPTURE_RADIUS_PX
+        # НОВОЕ: отслеживаем, приближается ли точка упреждения к центру кадра
+        # Это означает, что дрон начал разворачиваться в сторону упреждения
+        if self._prev_dist_to_lead is None:
+            self._prev_dist_to_lead = dist_to_lead
+            self._dist_derivative = 0.0
+        
+        # Производная расстояния (отрицательная = точка упреждения приближается к центру)
+        self._dist_derivative = 0.7 * self._dist_derivative + 0.3 * (dist_to_lead - self._prev_dist_to_lead)
+        self._prev_dist_to_lead = dist_to_lead
+        
+        # УСЛОВИЕ ЗАХВАТА: точка упреждения приближается к центру кадра И находится в разумной зоне
+        # Это гарантирует, что дрон НАЧАЛ разворот к точке упреждения, даже если ещё не достиг её
+        approaching_lead = self._dist_derivative < -0.5  # Точка упреждения движется к центру
+        in_reasonnable_zone = dist_to_lead <= self.cfg.LEAD_CAPTURE_RADIUS_PX * 3  # Расширенная зона (24px)
+        
+        in_capture_zone = approaching_lead and in_reasonnable_zone
         
         if not self._lead_capture_active:
             # Фаза захвата: обратная связь упреждения ОТКЛЮЧЕНА
@@ -147,8 +166,8 @@ class InterceptGuidance1:
             # (обратная связь упреждения отключена)
             if self._debug_counter % 30 == 0 and not self._lead_capture_active:
                 print(f"[LEAD CAPTURE] 🎯 Захват: {self._capture_counter}/{self.cfg.LEAD_CAPTURE_FRAMES} | "
-                      f"dist={dist_to_lead:.1f}px | radius={self.cfg.LEAD_CAPTURE_RADIUS_PX}px | "
-                      f"in_zone={in_capture_zone}")
+                      f"dist={dist_to_lead:.1f}px | deriv={self._dist_derivative:.2f} | "
+                      f"approaching={approaching_lead} | in_zone={in_reasonnable_zone}")
         else:
             # Фаза сопровождения: обратная связь упреждения ВКЛЮЧЕНА
             # Адаптация N работает как обычно
