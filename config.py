@@ -70,7 +70,7 @@ class InterceptConfig:
     MIN_GAIN_SCALE: float = 0.2 # Минимальный множитель усиления PD при крупной цели.
     MAX_RATE_CMD_RATE_DEG_S2: float = 400.0  # Максимальная скорость нарастания команды (deg/s²). Сглаживает рывки.
     
-    THRUST_RC: int = 1400 # Значение RC-канала газа во время TAKEOFF и TRACKING
+    THRUST_RC: int = 1600 # Значение RC-канала газа во время TAKEOFF и TRACKING
     TAKEOFF_TIME_SEC: float = 0.5 # Длительность фазы TAKEOFF (сек).
     SAFE_ANGLE_LIMIT_DEG: float = 30.0 # Ограничение углов при взлёте (защита от переворота).
     JOY_DEADZONE: float = 0.05 # Мёртвая зона джойстика.
@@ -82,5 +82,5 @@ class InterceptConfig:
     
     # ---------------- Захват упреждения (Lead Capture) ----------------
     # Область вокруг точки упреждения для включения обратной связи
-    LEAD_CAPTURE_RADIUS_PX: float = 80.0  # Радиус области вокруг точки упреждения (px)
+    LEAD_CAPTURE_RADIUS_PX: float = 8.0  # Радиус области вокруг точки упреждения (px)
     LEAD_CAPTURE_FRAMES: int = 15  # Сколько кадров подряд центр должен быть в области для включения ОС
