@@ -50,6 +50,8 @@ class InterceptGuidance1:
         self._initial_lead_set = False
         self._prev_dist_to_lead = None
         self._dist_derivative = 0.0
+        self._initial_capture_dist = None
+        self._min_dist_since_start = None
 
     def _target_size_ratio(self, bbox_w):
         return bbox_w / float(self.cfg.FRAME_W)
@@ -111,8 +113,10 @@ class InterceptGuidance1:
         los_rate_mag = math.hypot(rate_x, rate_y)  # deg/s
 
         # --- ЛОГИКА ЗАХВАТА УПРЕЖДЕНИЯ (Lead Capture) ---
-        # Критическое исправление: включаем ОС не когда центр кадра ДОСТИГ точки упреждения,
-        # а когда точка упреждения ПРИБЛИЖАЕТСЯ к центру кадра (дрон начал разворот)
+        # Решение бага: при запуске дрона обратная связь упреждения ОТКЛЮЧЕНА
+        # Дрон просто летит к расчётной точке упреждения без контроля угловой скорости цели
+        # Обратная связь включается ТОЛЬКО когда дрон ФИЗИЧЕСКИ повернулся к точке упреждения
+        # Это гарантирует, что нос дрона перелетит переднюю часть цели перед включением ОС
         
         # Вычисляем точку упреждения для проверки попадания в область захвата
         temp_lead_az_deg, temp_lead_el_deg, temp_lead_mag = self._compute_lead(rate_x, rate_y, ttc)
@@ -130,46 +134,57 @@ class InterceptGuidance1:
         frame_center_y = self.cfg.FRAME_H / 2.0
         dist_to_lead = math.hypot(lead_point_x - frame_center_x, lead_point_y - frame_center_y)
         
-        # НОВОЕ: отслеживаем, приближается ли точка упреждения к центру кадра
-        # Это означает, что дрон начал разворачиваться в сторону упреждения
+        # Инициализация при первом кадре или после сброса
         if self._prev_dist_to_lead is None:
             self._prev_dist_to_lead = dist_to_lead
             self._dist_derivative = 0.0
+            self._initial_capture_dist = dist_to_lead  # Запоминаем начальное расстояние
+            self._min_dist_since_start = dist_to_lead  # Минимальное расстояние с начала
         
-        # Производная расстояния (отрицательная = точка упреждения приближается к центру)
+        # Производная расстояния (отрицательная = центр кадра приближается к точке упреждения)
         self._dist_derivative = 0.7 * self._dist_derivative + 0.3 * (dist_to_lead - self._prev_dist_to_lead)
         self._prev_dist_to_lead = dist_to_lead
         
-        # УСЛОВИЕ ЗАХВАТА: точка упреждения приближается к центру кадра И находится в разумной зоне
-        # Это гарантирует, что дрон НАЧАЛ разворот к точке упреждения, даже если ещё не достиг её
-        approaching_lead = self._dist_derivative < -0.5  # Точка упреждения движется к центру
-        in_reasonnable_zone = dist_to_lead <= self.cfg.LEAD_CAPTURE_RADIUS_PX * 3  # Расширенная зона (24px)
+        # Отслеживаем минимальное достигнутое расстояние (для гарантии разворота)
+        self._min_dist_since_start = min(self._min_dist_since_start, dist_to_lead)
         
-        in_capture_zone = approaching_lead and in_reasonnable_zone
+        # УСЛОВИЕ ЗАХВАТА (строгое):
+        # 1. Точка упреждения находится в расширенной зоне вокруг центра кадра
+        # 2. Дрон ФИЗИЧЕСКИ приблизился к точке упреждения (расстояние уменьшилось от начального)
+        # 3. Производная отрицательная или близка к нулю (движение продолжается или стабилизировалось)
+        in_capture_zone = dist_to_lead <= self.cfg.LEAD_CAPTURE_RADIUS_PX * 2  # Расширенная зона (16px)
+        moved_toward_lead = self._min_dist_since_start < self._initial_capture_dist * 0.85  # Уменьшилось на 15%+
+        not_moving_away = self._dist_derivative < 1.0  # Не удаляемся быстро
+        
+        should_capture = in_capture_zone and moved_toward_lead and not_moving_away
         
         if not self._lead_capture_active:
             # Фаза захвата: обратная связь упреждения ОТКЛЮЧЕНА
-            if in_capture_zone:
+            # Дрон просто летит к точке упреждения без контроля угловой скорости цели
+            if should_capture:
                 self._capture_counter += 1
                 if self._capture_counter >= self.cfg.LEAD_CAPTURE_FRAMES:
                     # Захват завершён: включаем обратную связь упреждения
+                    # К этому моменту нос дрона гарантированно перелетел переднюю часть цели
                     self._lead_capture_active = True
                     self._initial_lead_set = True
                     if self._debug_counter % 10 == 0:
                         print(f"[LEAD CAPTURE] ✅ Захват выполнен! Обратная связь упреждения ВКЛЮЧЕНА")
             else:
-                # Точка упреждения вышла из области захвата (центр кадра ушёл от точки упреждения)
-                # Сбрасываем счётчик, но не сразу — даём небольшой гистерезис
+                # Центр кадра ещё не начал движение к точке упреждения или вышел из зоны
+                # Сбрасываем счётчик постепенно для гистерезиса
                 self._capture_counter = max(0, self._capture_counter - 1)
                 
             # В фазе захвата НЕ обновляем N на основе LOS-скорости цели
-            # (обратная связь упреждения отключена)
+            # (обратная связь упреждения отключена - дрон просто летит к точке)
             if self._debug_counter % 30 == 0 and not self._lead_capture_active:
                 print(f"[LEAD CAPTURE] 🎯 Захват: {self._capture_counter}/{self.cfg.LEAD_CAPTURE_FRAMES} | "
-                      f"dist={dist_to_lead:.1f}px | deriv={self._dist_derivative:.2f} | "
-                      f"approaching={approaching_lead} | in_zone={in_reasonnable_zone}")
+                      f"dist={dist_to_lead:.1f}px | min_dist={self._min_dist_since_start:.1f} | "
+                      f"init_dist={self._initial_capture_dist:.1f} | deriv={self._dist_derivative:.2f} | "
+                      f"in_zone={in_capture_zone} | moved={moved_toward_lead} | not_away={not_moving_away}")
         else:
             # Фаза сопровождения: обратная связь упреждения ВКЛЮЧЕНА
+            # Теперь контролируем угловую скорость цели (стремимся к нулю)
             # Адаптация N работает как обычно
             if los_rate_mag > self.cfg.LOS_OVERSHOOT_DEG_S:
                 self.current_N -= self.cfg.N_ADAPT_RATE * 5.0 * dt_n
