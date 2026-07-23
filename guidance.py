@@ -118,11 +118,14 @@ class InterceptGuidance1:
         lead_point_x = cx + temp_lead_px_x
         lead_point_y = cy + temp_lead_px_y
         
-        # Расстояние от центра кадра до точки упреждения
-        dist_to_lead = math.hypot(lead_point_x - cx, lead_point_y - cy)
+        # Расстояние от ЦЕНТРА КАДРА до точки упреждения
+        # Это критически важно: проверяем, насколько точка упреждения близка к центру кадра
+        frame_center_x = self.cfg.FRAME_W / 2.0
+        frame_center_y = self.cfg.FRAME_H / 2.0
+        dist_to_lead = math.hypot(lead_point_x - frame_center_x, lead_point_y - frame_center_y)
         
-        # Проверка: центр кадра находится в области вокруг точки упреждения
-        # (эквивалентно: точка упреждения находится в области вокруг центра кадра)
+        # Проверка: точка упреждения находится в области вокруг центра кадра
+        # Это означает, что дрон навёлся на точку упреждения (нос дрона смотрит за переднюю часть цели)
         in_capture_zone = dist_to_lead <= self.cfg.LEAD_CAPTURE_RADIUS_PX
         
         if not self._lead_capture_active:
@@ -136,7 +139,8 @@ class InterceptGuidance1:
                     if self._debug_counter % 10 == 0:
                         print(f"[LEAD CAPTURE] ✅ Захват выполнен! Обратная связь упреждения ВКЛЮЧЕНА")
             else:
-                # Центр кадра вышел из области захвата — сбрасываем счётчик
+                # Точка упреждения вышла из области захвата (центр кадра ушёл от точки упреждения)
+                # Сбрасываем счётчик, но не сразу — даём небольшой гистерезис
                 self._capture_counter = max(0, self._capture_counter - 1)
                 
             # В фазе захвата НЕ обновляем N на основе LOS-скорости цели
