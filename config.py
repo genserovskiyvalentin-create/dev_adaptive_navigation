@@ -79,3 +79,8 @@ class InterceptConfig:
     MAVLINK_CONN: str = "udp:127.0.0.1:14550"
     GST_UDP_PORT: int = 5600
     GAZEBO_CAMERA_TOPIC: str = "/world/iris_runway/model/iris_with_wings/link/camera_link/sensor/camera/image/enable_streaming"
+    
+    # ---------------- Захват упреждения (Lead Capture) ----------------
+    # Область вокруг точки упреждения для включения обратной связи
+    LEAD_CAPTURE_RADIUS_PX: float = 80.0  # Радиус области вокруг точки упреждения (px)
+    LEAD_CAPTURE_FRAMES: int = 15  # Сколько кадров подряд центр должен быть в области для включения ОС
