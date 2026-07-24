@@ -154,6 +154,23 @@ def main():
             gimbal.update()
             gimbal_attitude = gimbal.get_attitude()
 
+
+            # === НЕПРЕРЫВНЫЙ ВЫВОД УГЛОВ ГИМБАЛА НА ЭКРАН ===
+            roll_g = gimbal_attitude.get("roll_deg", 0.0)
+            pitch_g = gimbal_attitude.get("pitch_deg", 0.0)
+                        
+            # Формируем строку для вывода
+            info_text = f"GIMBAL: R:{roll_g:+5.1f}° P:{pitch_g:+5.1f}°"
+            
+            # Рисуем текст в левом верхнем углу (координаты x=10, y=20)
+            # Цвет (255, 255, 0) - желтый, толщина 1
+            cv2.putText(frame, info_text, (10, 200), 
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 0), 1)
+
+
+
+            
+
             ch1, ch2, ch3, ch4, ch5, switch_on = read_joystick(joy)
             target = detect_target(frame)
             osd.draw_crosshair(frame)

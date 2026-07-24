@@ -9,23 +9,30 @@ class PhaseState:
 class InterceptGuidance1:
     def __init__(self, cfg):
         self.cfg = cfg
-        self.los = LOSTracker(cfg)
-        self.ttc_est = TTCEstimator(cfg)
-        self._frozen = False
-        self._frozen_lead = None
+        self.los = LOSTracker(cfg) # объккт расчтеа угловой скорости со сглаживанием
+        self.ttc_est = TTCEstimator(cfg) # Объект оценки времени до столкновения
+        self._frozen = False # Флаг "заморожено" ли упреждение. Надо для терминальнго тарана
+        self._frozen_lead = None # Замороженное значение для терминальной операции
         self.phase = PhaseState.ALIGN
-        self._debug_counter = 0
+        self._debug_counter = 0 # Счётчик кадров. Нужен только для того,
+                                #чтобы печатать отладочные сообщения не каждый кадр,
+                                #  а раз в 30 кадров (чтобы не засорять консоль
 
-        self.current_N = cfg.N_NAV
-        self._last_N_t = None
+        self.current_N = cfg.N_NAV # Текущее значение коэффициента наведения.
+        self._last_N_t = None # Время (в секундах), когда последний раз обновлялся N.
+                              # Нужно, чтобы считать dt — время между кадрами, за которое N изменился.  
 
+        # Сглаживание упреждения
         self._smooth_lead_x = 0.0
         self._smooth_lead_y = 0.0
-        self.LEAD_SMOOTHING_ALPHA = 0.15
+        self.LEAD_SMOOTHING_ALPHA = 0.5 # Коэффициент сглаживания. 0.15 означает: "каждый кадр бери 15% от
+                                        # нового значения и 85% от старого". Чем меньше — тем плавнее, но
+                                        #больше задержка.
 
         # Фокусное расстояние в пикселях (pinhole-модель) для перевода px <-> deg
         self._fx = cfg.FRAME_W / (2.0 * math.tan(math.radians(cfg.FOV_H_DEG) / 2.0))
 
+        # Сброс все праметров при потери цели
     def reset(self):
         self.los.reset()
         self.ttc_est.reset()
@@ -37,31 +44,27 @@ class InterceptGuidance1:
         self._smooth_lead_x = 0.0
         self._smooth_lead_y = 0.0
 
+    # Этот метод вычисляет относительный размер цели в кадре.
+    # Он показывает, какую часть ширины экрана занимает ширина рамки детектора.
     def _target_size_ratio(self, bbox_w):
-        return bbox_w / float(self.cfg.FRAME_W)
+        return bbox_w / float(self.cfg.FRAME_W) # ширину рамки делим на ширину кадра
 
     def _pixel_to_world_angle(self, cx, cy, gimbal_attitude):
+
         """
         Переводит пиксельные координаты цели в кадре в угол линии визирования
         в МИРОВОЙ системе координат, компенсируя текущую ориентацию гимбала
         (yaw/pitch/roll), чтобы вращение носителя не принималось за движение цели.
         """
+
+        # На сколько цель сместилась от ценра. Центр 0,0 координаты
         dx = cx - self.cfg.FRAME_W / 2.0
         dy = cy - self.cfg.FRAME_H / 2.0
-        if self.cfg.CAMERA_FLIP_Y:
-            dy = -dy
 
-        # Компенсация крена: разворачиваем офсет в "горизонт" гимбала,
-        # иначе при ненулевом roll оси az/el будут перепутаны.
-        roll_rad = math.radians(gimbal_attitude.get("roll_deg", 0.0))
-        cos_r, sin_r = math.cos(-roll_rad), math.sin(-roll_rad)
-        dx_r = dx * cos_r - dy * sin_r
-        dy_r = dx * sin_r + dy * cos_r
+        az_offset_deg = math.degrees(math.atan(dx / self._fx))
+        el_offset_deg = math.degrees(math.atan(dy / self._fx))
 
-        az_offset_deg = math.degrees(math.atan(dx_r / self._fx))
-        el_offset_deg = math.degrees(math.atan(dy_r / self._fx))
-
-        world_az_deg = gimbal_attitude.get("yaw_deg", 0.0) + az_offset_deg
+        world_az_deg = gimbal_attitude.get("roll_deg", 0.0) + az_offset_deg
         world_el_deg = gimbal_attitude.get("pitch_deg", 0.0) + el_offset_deg
         return world_az_deg, world_el_deg
 
@@ -150,7 +153,7 @@ class InterceptGuidance1:
         }
 
     def _compute_lead(self, rate_x, rate_y, ttc):
-        """rate_x/rate_y — deg/s. Возвращает упреждение В ГРАДУСАХ."""
+        """rate_x/rate_y — deg/s.Угловая скорость Возвращает упреждение В ГРАДУСАХ."""
         if ttc is None:
             return 0.0, 0.0, 0.0
 
